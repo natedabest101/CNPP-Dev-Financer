@@ -213,6 +213,7 @@
   <div class="topbar">
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
+      <span id="syncStatus" style="font-size:0.72rem;font-family:var(--font-mono);color:var(--muted);transition:color 0.3s;">☁️ Local only</span>
       <span id="devexBadge" class="devex-badge ineligible">DevEx: Ineligible</span>
       <span id="topbarRobux" style="font-family:var(--font-mono);font-size:0.82rem;color:var(--muted)">0 R$</span>
     </div>
@@ -500,12 +501,40 @@
         <button onclick="saveSettings()">💾 Save Settings</button>
       </div>
     </div>
+    <div class="card" style="margin-top:16px;border-color:var(--accent2);">
+      <div class="card-title" style="color:var(--accent);">☁️ Supabase Cloud Sync</div>
+      <p style="font-size:0.8rem;color:var(--muted);margin:8px 0 16px;line-height:1.6;">
+        Connect to your free Supabase project to sync data across all your devices automatically.
+        Your data is stored in <strong style="color:var(--text)">your own</strong> Supabase database — RoFinance never sees it.
+      </p>
+      <div class="input-row">
+        <div class="form-group" style="flex:2">
+          <label>Supabase Project URL</label>
+          <input type="text" id="set-sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" style="width:100%;font-family:var(--font-mono);font-size:0.78rem">
+        </div>
+        <div class="form-group" style="flex:3">
+          <label>Supabase Anon/Public Key</label>
+          <input type="password" id="set-sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="width:100%;font-family:var(--font-mono);font-size:0.78rem">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button onclick="saveAndTestSupabase()">🔌 Connect & Test</button>
+        <button class="btn-ghost" onclick="disconnectSupabase()">✕ Disconnect</button>
+        <button class="btn-ghost" onclick="forcePullCloud()">⬇ Pull from Cloud</button>
+        <button class="btn-ghost" onclick="forcePushCloud()">⬆ Push to Cloud</button>
+        <span id="sbTestResult" style="font-size:0.78rem;font-family:var(--font-mono);color:var(--muted)"></span>
+      </div>
+      <div class="info-box" style="margin-top:12px;font-size:0.75rem;">
+        <strong>Setup in 2 min:</strong> supabase.com → New Project → SQL Editor → run the setup query → Settings → API → copy URL + anon key here.
+        <br>SQL: <code style="color:var(--accent)">create table rofinance_data (id text primary key default 'main', data jsonb not null, updated_at timestamptz default now()); insert into rofinance_data (id, data) values ('main', '{}');</code>
+      </div>
+    </div>
     <div class="card" style="margin-top:16px;">
       <div class="card-title">About RoFinance</div>
       <p style="font-size:0.82rem;color:var(--muted);line-height:1.7;margin-top:8px;">
         RoFinance is an independent, open financial calculator for Roblox developers. Not affiliated with Roblox Corporation.<br>
-        All data stored locally in your browser. No accounts required. No data sent to servers.<br>
-        <strong style="color:var(--accent)">Version 1.0</strong> — Built for Roblox Studios and independent devs.
+        Data saved locally always. Cloud sync optional via your own Supabase project.<br>
+        <strong style="color:var(--accent)">Version 1.1</strong> — Built for Roblox Studios and independent devs.
       </p>
     </div>
   </div>
@@ -540,7 +569,7 @@
 
 <script>
 // ============================================================
-//  STATE — all data lives here, persisted to localStorage
+//  STATE — all data lives here, persisted to localStorage + Supabase
 // ============================================================
 let state = {
   revenues: [],
@@ -552,24 +581,118 @@ let state = {
     defaultDevPct: 100,
     currency: '$',
     numFmt: 'en-US',
-    theme: 'dark'
-  },
-  editingRevIdx: null,
-  editingDevIdx: null
+    theme: 'dark',
+    supabaseUrl: 'https://dkfyabvapngvcoblweur.supabase.co',
+    supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrZnlhYnZhcG5ndmNvYmx3ZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyOTE5NDQsImV4cCI6MjA4Nzg2Nzk0NH0.WUftmFQHdnabiM9zJ6JHYtyucfdj8tmplfScfgSeqrk'
+  }
 };
 
 // ============================================================
-//  PERSISTENCE
+//  SYNC STATUS UI
 // ============================================================
-function save() {
-  localStorage.setItem('rofinance_v1', JSON.stringify(state));
+function setSyncStatus(status, msg) {
+  // status: 'idle' | 'saving' | 'saved' | 'error' | 'loading'
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const icons = { idle: '☁️', saving: '⏳', saved: '✅', error: '❌', loading: '🔄' };
+  const colors = { idle: 'var(--muted)', saving: 'var(--yellow)', saved: 'var(--green)', error: 'var(--red)', loading: 'var(--accent)' };
+  el.style.color = colors[status];
+  el.textContent = icons[status] + ' ' + msg;
 }
+
+// ============================================================
+//  PERSISTENCE — localStorage (always) + Supabase (when configured)
+// ============================================================
+
+// Save to localStorage immediately — never skip this
+function saveLocal() {
+  const payload = { revenues: state.revenues, developers: state.developers, settings: state.settings };
+  localStorage.setItem('rofinance_v1', JSON.stringify(payload));
+}
+
+// Debounce timer for cloud saves — avoids hammering Supabase on every keystroke
+let _saveTimer = null;
+function save() {
+  saveLocal(); // Always instant local save
+  scheduleCloudSave();
+}
+
+function scheduleCloudSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  if (!state.settings.supabaseUrl || !state.settings.supabaseKey) return;
+  setSyncStatus('saving', 'Saving...');
+  _saveTimer = setTimeout(() => saveToSupabase(), 1200); // 1.2s debounce
+}
+
+async function saveToSupabase() {
+  const { supabaseUrl, supabaseKey } = state.settings;
+  if (!supabaseUrl || !supabaseKey) return;
+  try {
+    const payload = { revenues: state.revenues, developers: state.developers, settings: state.settings };
+    const res = await fetch(`${supabaseUrl}/rest/v1/rofinance_data?id=eq.main`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ data: payload, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    setSyncStatus('saved', 'Synced ' + new Date().toLocaleTimeString());
+    updateStorageInfo();
+  } catch (err) {
+    setSyncStatus('error', 'Sync failed — local only');
+    console.warn('Supabase save error:', err);
+  }
+}
+
+async function loadFromSupabase() {
+  const { supabaseUrl, supabaseKey } = state.settings;
+  if (!supabaseUrl || !supabaseKey) return false;
+  setSyncStatus('loading', 'Loading from cloud...');
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rofinance_data?id=eq.main&select=data,updated_at`, {
+      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    if (rows && rows[0] && rows[0].data && Object.keys(rows[0].data).length > 0) {
+      const cloud = rows[0].data;
+      // Merge: cloud wins for revenues/developers, but keep local settings as fallback
+      state.revenues = cloud.revenues || state.revenues;
+      state.developers = cloud.developers || state.developers;
+      state.settings = { ...state.settings, ...(cloud.settings || {}) };
+      saveLocal();
+      setSyncStatus('saved', 'Loaded from cloud ✓');
+      return true;
+    }
+    setSyncStatus('saved', 'Cloud empty — using local');
+    return false;
+  } catch (err) {
+    setSyncStatus('error', 'Cloud unreachable — using local');
+    console.warn('Supabase load error:', err);
+    return false;
+  }
+}
+
+async function testSupabaseConnection(url, key) {
+  try {
+    const res = await fetch(`${url}/rest/v1/rofinance_data?id=eq.main&select=id`, {
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 function load() {
   const raw = localStorage.getItem('rofinance_v1');
   if (raw) {
     try {
       const loaded = JSON.parse(raw);
-      state = { ...state, ...loaded };
+      state.revenues = loaded.revenues || [];
+      state.developers = loaded.developers || [];
       state.settings = { ...state.settings, ...(loaded.settings || {}) };
     } catch(e) {}
   }
@@ -1031,6 +1154,8 @@ function loadSettingsForm() {
   document.getElementById('set-currency').value = s.currency;
   document.getElementById('set-numfmt').value = s.numFmt;
   document.getElementById('set-theme').value = s.theme;
+  document.getElementById('set-sb-url').value = s.supabaseUrl || '';
+  document.getElementById('set-sb-key').value = s.supabaseKey || '';
 }
 
 function saveSettings() {
@@ -1042,6 +1167,51 @@ function saveSettings() {
   state.settings.numFmt = document.getElementById('set-numfmt').value;
   applyTheme(document.getElementById('set-theme').value);
   save(); renderAll(); showToast('Settings saved!');
+}
+
+async function saveAndTestSupabase() {
+  const url = document.getElementById('set-sb-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('set-sb-key').value.trim();
+  const result = document.getElementById('sbTestResult');
+  if (!url || !key) { result.textContent = '⚠ Enter URL and key first'; result.style.color = 'var(--yellow)'; return; }
+  result.textContent = '🔄 Testing...'; result.style.color = 'var(--accent)';
+  const ok = await testSupabaseConnection(url, key);
+  if (ok) {
+    state.settings.supabaseUrl = url;
+    state.settings.supabaseKey = key;
+    save();
+    result.textContent = '✅ Connected!'; result.style.color = 'var(--green)';
+    setSyncStatus('saved', 'Connected to Supabase ✓');
+    showToast('Supabase connected!');
+    // Push current local data up immediately
+    await saveToSupabase();
+  } else {
+    result.textContent = '❌ Connection failed — check URL, key, and that the table exists';
+    result.style.color = 'var(--red)';
+    setSyncStatus('error', 'Connection failed');
+  }
+}
+
+function disconnectSupabase() {
+  state.settings.supabaseUrl = '';
+  state.settings.supabaseKey = '';
+  document.getElementById('set-sb-url').value = '';
+  document.getElementById('set-sb-key').value = '';
+  document.getElementById('sbTestResult').textContent = 'Disconnected';
+  save();
+  setSyncStatus('idle', 'Local only');
+  showToast('Supabase disconnected');
+}
+
+async function forcePullCloud() {
+  const ok = await loadFromSupabase();
+  if (ok) { renderAll(); loadSettingsForm(); showToast('Pulled from cloud!'); }
+  else showToast('Nothing to pull or not connected');
+}
+
+async function forcePushCloud() {
+  await saveToSupabase();
+  showToast('Pushed to cloud!');
 }
 
 function applyTheme(t) {
@@ -1123,20 +1293,52 @@ function showToast(msg) {
 }
 
 // ============================================================
-//  INIT
+//  ADMIN
+// ============================================================
+function backupData() {
+  const payload = { revenues: state.revenues, developers: state.developers, settings: state.settings };
+  downloadFile('rofinance_backup_' + new Date().toISOString().slice(0,10) + '.json', JSON.stringify(payload, null, 2), 'application/json');
+}
+
+function importBackup(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      state.revenues = data.revenues || [];
+      state.developers = data.developers || [];
+      state.settings = { ...state.settings, ...(data.settings||{}) };
+      save(); renderAll(); loadSettingsForm(); applyTheme(state.settings.theme);
+      showToast('Backup imported!');
+    } catch { alert('Invalid backup file'); }
+  };
+  reader.readAsText(f);
+}
+
+function resetData() {
+  state.revenues = []; state.developers = [];
+  save(); renderAll(); showToast('Data reset!');
+}
+
+function updateStorageInfo() {
+  const raw = localStorage.getItem('rofinance_v1') || '';
+  const kb = (raw.length / 1024).toFixed(2);
+  const connected = !!(state.settings.supabaseUrl && state.settings.supabaseKey);
+  document.getElementById('storageInfo').innerHTML =
+    `Entries: ${state.revenues.length}<br>Developers: ${state.developers.length}<br>Local storage: ~${kb} KB / ~5 MB<br>Cloud sync: <span style="color:${connected?'var(--green)':'var(--muted)'}">${connected ? '✅ Connected' : '❌ Not configured — go to Settings'}</span>`;
+}
+
+// ============================================================
+//  INIT — local first, then cloud in background
 // ============================================================
 load();
 applyTheme(state.settings.theme);
 loadSettingsForm();
-
-// Prefill devex calculator with settings values
 document.getElementById('calc-cut').value = state.settings.marketplaceCut;
 document.getElementById('calc-rate').value = state.settings.devexRate;
 
-renderAll();
-calcDevEx();
-
-// Seed demo data if empty
+// Seed demo data only if completely fresh
 if (state.revenues.length === 0) {
   const types = ['Gamepass','Dev Product','Premium Payout','Ads'];
   const games = ['Survive the Flood','Epic Tycoon','Battle Arena'];
@@ -1157,8 +1359,22 @@ if (state.revenues.length === 0) {
     { name: 'You (Lead Dev)', role: 'Lead', pct: 60, active: true },
     { name: 'Partner Dev', role: 'Builder', pct: 40, active: true }
   ];
-  save(); renderAll();
+  saveLocal();
 }
+
+renderAll();
+calcDevEx();
+
+// Background cloud sync — non-blocking, won't freeze UI
+(async () => {
+  if (state.settings.supabaseUrl && state.settings.supabaseKey) {
+    const pulled = await loadFromSupabase();
+    if (pulled) { renderAll(); loadSettingsForm(); }
+  } else {
+    setSyncStatus('idle', 'Local only — connect Supabase in Settings');
+  }
+})();
+
 </script>
 </body>
 </html>
