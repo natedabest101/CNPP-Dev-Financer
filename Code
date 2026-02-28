@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoFinance — Roblox Studio Finance Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --green: #00ff88;
+    --red: #ff4466;
+    --yellow: #ffd700;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+  .light {
+    --bg: #f0f0f8;
+    --surface: #ffffff;
+    --surface2: #e8e8f4;
+    --border: #d0d0e0;
+    --text: #1a1a2e;
+    --muted: #6b6b8a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-head); min-height: 100vh; display: flex; overflow: hidden; }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; z-index: 100; transition: width 0.3s;
+  }
+  .logo { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+  .logo h1 { font-size: 1.1rem; font-weight: 800; color: var(--accent); letter-spacing: -0.5px; }
+  .logo span { font-size: 0.7rem; color: var(--muted); font-family: var(--font-mono); }
+  nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer;
+    color: var(--muted); font-size: 0.82rem; font-weight: 600; transition: all 0.2s;
+    border-left: 3px solid transparent; letter-spacing: 0.3px;
+  }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,255,0.06); }
+  .nav-icon { font-size: 1rem; width: 18px; text-align: center; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .theme-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-family: var(--font-head); width: 100%; }
+
+  /* MAIN */
+  #main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  .topbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50;
+  }
+  .page-title { font-size: 1.1rem; font-weight: 800; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .devex-badge {
+    background: var(--green); color: #000; padding: 4px 10px; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 700; font-family: var(--font-mono);
+  }
+  .devex-badge.ineligible { background: var(--red); color: #fff; }
+
+  /* PAGES */
+  .page { display: none; padding: 28px; flex: 1; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-size: 0.7rem; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .card-value { font-size: 2rem; font-weight: 800; font-family: var(--font-mono); color: var(--accent); }
+  .card-value.green { color: var(--green); }
+  .card-value.yellow { color: var(--yellow); }
+  .card-sub { font-size: 0.72rem; color: var(--muted); margin-top: 4px; font-family: var(--font-mono); }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+
+  /* PROGRESS */
+  .progress-bar { background: var(--border); border-radius: 8px; height: 10px; margin: 10px 0; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width 0.5s; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { text-align: left; padding: 10px 12px; color: var(--muted); font-family: var(--font-mono); font-size: 0.7rem; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--surface2); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.68rem; font-weight: 700; font-family: var(--font-mono); }
+  .badge-blue { background: rgba(0,229,255,0.15); color: var(--accent); }
+  .badge-purple { background: rgba(124,58,237,0.2); color: #a78bfa; }
+  .badge-green { background: rgba(0,255,136,0.15); color: var(--green); }
+  .badge-yellow { background: rgba(255,215,0,0.15); color: var(--yellow); }
+  .badge-red { background: rgba(255,68,102,0.15); color: var(--red); }
+
+  /* INPUTS */
+  input, select, textarea {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; font-family: var(--font-head); font-size: 0.82rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 4px; font-family: var(--font-mono); }
+  .form-group { margin-bottom: 16px; }
+  .input-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .input-row .form-group { flex: 1; min-width: 140px; margin-bottom: 0; }
+  button {
+    background: var(--accent); color: #000; border: none; padding: 9px 18px; border-radius: 8px;
+    font-family: var(--font-head); font-weight: 700; font-size: 0.82rem; cursor: pointer; transition: opacity 0.2s;
+  }
+  button:hover { opacity: 0.85; }
+  .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-sm { padding: 5px 10px; font-size: 0.72rem; border-radius: 6px; }
+
+  /* CHART */
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-wrap-tall { position: relative; height: 280px; }
+
+  /* FORMULA BOX */
+  .formula-box {
+    background: var(--surface2); border: 1px solid var(--accent); border-radius: 10px; padding: 16px 20px;
+    font-family: var(--font-mono); font-size: 0.82rem; color: var(--accent); margin: 16px 0;
+    line-height: 2;
+  }
+  .formula-step { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .formula-step:last-child { border-bottom: none; color: var(--green); font-size: 1rem; font-weight: 700; }
+
+  /* RANGE */
+  input[type=range] { background: none; border: none; padding: 0; width: 100%; accent-color: var(--accent); }
+
+  /* SECTION HEADER */
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .section-header h2 { font-size: 1rem; font-weight: 700; }
+  .actions { display: flex; gap: 8px; }
+
+  /* STATUS DOT */
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot-red { background: var(--red); }
+
+  /* TAX */
+  .tax-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .tax-row:last-child { border: none; font-weight: 700; font-size: 1rem; color: var(--green); }
+
+  /* PROJECTIONS */
+  .proj-highlight { background: linear-gradient(135deg, rgba(0,229,255,0.1), rgba(124,58,237,0.1)); border: 1px solid var(--accent); border-radius: 12px; padding: 20px; text-align: center; }
+  .proj-big { font-size: 2.5rem; font-weight: 800; font-family: var(--font-mono); color: var(--accent); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: #000; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.82rem; z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* MOBILE */
+  @media (max-width: 768px) {
+    #sidebar { width: 60px; min-width: 60px; }
+    .nav-item span { display: none; }
+    .logo h1, .logo span { display: none; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .page { padding: 16px; }
+  }
+
+  .warning { background: rgba(255,215,0,0.1); border: 1px solid var(--yellow); color: var(--yellow); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; margin: 8px 0; }
+  .info-box { background: rgba(0,229,255,0.07); border: 1px solid rgba(0,229,255,0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; margin: 8px 0; }
+  .dev-split-total { font-family: var(--font-mono); font-size: 0.85rem; padding: 8px; }
+  .dev-split-total.ok { color: var(--green); }
+  .dev-split-total.bad { color: var(--red); }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="logo">
+    <h1>RoFinance</h1>
+    <span>Studio Tracker v1.0</span>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item" onclick="showPage('revenue')"><span class="nav-icon">💎</span><span>Revenue Input</span></div>
+    <div class="nav-item" onclick="showPage('splits')"><span class="nav-icon">👥</span><span>Dev Splits</span></div>
+    <div class="nav-item" onclick="showPage('devex')"><span class="nav-icon">💵</span><span>DevEx Calc</span></div>
+    <div class="nav-item" onclick="showPage('analytics')"><span class="nav-icon">📈</span><span>Analytics</span></div>
+    <div class="nav-item" onclick="showPage('projections')"><span class="nav-icon">🔮</span><span>Projections</span></div>
+    <div class="nav-item" onclick="showPage('tax')"><span class="nav-icon">🏛️</span><span>Tax Estimator</span></div>
+    <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙️</span><span>Settings</span></div>
+    <div class="nav-item" onclick="showPage('admin')"><span class="nav-icon">🗄️</span><span>Data Admin</span></div>
+  </nav>
+  <div class="sidebar-footer">
+    <button class="theme-btn" onclick="toggleTheme()">🌓 Toggle Theme</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+  <div class="topbar">
+    <div class="page-title" id="pageTitle">Dashboard</div>
+    <div class="topbar-right">
+      <span id="devexBadge" class="devex-badge ineligible">DevEx: Ineligible</span>
+      <span id="topbarRobux" style="font-family:var(--font-mono);font-size:0.82rem;color:var(--muted)">0 R$</span>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="grid-4">
+      <div class="card">
+        <div class="card-title">Gross Robux</div>
+        <div class="card-value" id="d-grossRobux">0</div>
+        <div class="card-sub">Total earned</div>
+      </div>
+      <div class="card">
+        <div class="card-title">After Platform Fee</div>
+        <div class="card-value" id="d-afterFee">0</div>
+        <div class="card-sub">After 30% cut</div>
+      </div>
+      <div class="card">
+        <div class="card-title">USD Value</div>
+        <div class="card-value green" id="d-usd">$0.00</div>
+        <div class="card-sub">Your share × DevEx rate</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Est. Cashout</div>
+        <div class="card-value yellow" id="d-cashout">$0.00</div>
+        <div class="card-sub">DevEx eligible portion</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">DevEx Eligibility Progress</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span id="d-eligStatus" style="font-size:0.85rem;font-weight:700"><span class="dot dot-red"></span>Not Eligible</span>
+          <span id="d-progText" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--muted)">0 / 30,000 R$</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="d-progress" style="width:0%"></div></div>
+        <div class="card-sub" id="d-needed">Need 30,000 more Robux</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Monthly Summary</div>
+        <div class="chart-wrap"><canvas id="dashMonthChart"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Revenue Sources</div>
+        <div class="chart-wrap"><canvas id="dashSourceChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Developer Splits</div>
+        <div class="chart-wrap"><canvas id="dashSplitChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVENUE INPUT -->
+  <div class="page" id="page-revenue">
+    <div class="section-header">
+      <h2>Revenue Entries</h2>
+      <div class="actions">
+        <button class="btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
+        <label style="margin:0"><button class="btn-ghost" onclick="document.getElementById('csvImport').click()">⬆ Import CSV</button></label>
+        <input type="file" id="csvImport" accept=".csv" style="display:none" onchange="importCSV(event)">
+        <button onclick="openAddRevenue()">+ Add Entry</button>
+      </div>
+    </div>
+
+    <!-- Add/Edit form -->
+    <div id="revenueForm" style="display:none" class="card" style="margin-bottom:20px;">
+      <div style="margin-bottom:12px;font-weight:700;" id="revFormTitle">Add Revenue Entry</div>
+      <div class="input-row">
+        <div class="form-group"><label>Date</label><input type="date" id="rev-date"></div>
+        <div class="form-group"><label>Source Type</label>
+          <select id="rev-type">
+            <option>Gamepass</option><option>Dev Product</option><option>Premium Payout</option><option>Ads</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Robux Earned</label><input type="number" id="rev-robux" placeholder="0" min="0"></div>
+        <div class="form-group"><label>Game Name</label><input type="text" id="rev-game" placeholder="My Game"></div>
+        <div class="form-group"><label>Notes</label><input type="text" id="rev-notes" placeholder="Optional"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="saveRevenue()">Save</button>
+        <button class="btn-ghost" onclick="cancelRevenue()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table id="revenueTable">
+          <thead><tr><th>Date</th><th>Source</th><th>Robux</th><th>Game</th><th>Notes</th><th>Actions</th></tr></thead>
+          <tbody id="revenueBody"></tbody>
+        </table>
+      </div>
+      <div style="padding:12px 0;display:flex;justify-content:flex-end;align-items:center;gap:16px;border-top:1px solid var(--border);margin-top:12px;">
+        <span style="color:var(--muted);font-size:0.8rem;font-family:var(--font-mono)">TOTAL GROSS:</span>
+        <span id="revTotal" style="font-size:1.4rem;font-weight:800;font-family:var(--font-mono);color:var(--accent)">0 R$</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEVELOPER SPLITS -->
+  <div class="page" id="page-splits">
+    <div class="section-header">
+      <h2>Developer Splits</h2>
+      <button onclick="addDev()">+ Add Developer</button>
+    </div>
+    <div id="splitValidation" class="warning" style="display:none">⚠ Percentages must equal 100%</div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Developer</th><th>Role</th><th>Share %</th><th>Active</th><th>Robux Earned</th><th>USD Payout</th><th>Actions</th></tr></thead>
+          <tbody id="devsBody"></tbody>
+        </table>
+      </div>
+      <div style="padding:10px 12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span class="dev-split-total" id="splitTotal">Total: 0%</span>
+        <button onclick="addDev()">+ Add Developer</button>
+      </div>
+    </div>
+    <div class="grid-3" id="devCards"></div>
+  </div>
+
+  <!-- DEVEX CALCULATOR -->
+  <div class="page" id="page-devex">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">DevEx Calculator</div>
+        <div class="form-group"><label>Gross Robux Earned</label><input type="number" id="calc-gross" value="0" oninput="calcDevEx()" style="width:100%"></div>
+        <div class="form-group"><label>Marketplace Cut %</label><input type="number" id="calc-cut" value="30" min="0" max="100" oninput="calcDevEx()" style="width:100%"></div>
+        <div class="form-group"><label>Your Developer % (of remaining)</label><input type="number" id="calc-devpct" value="100" min="0" max="100" oninput="calcDevEx()" style="width:100%"></div>
+        <div class="form-group"><label>DevEx Rate (USD per Robux)</label><input type="number" id="calc-rate" value="0.0035" step="0.0001" oninput="calcDevEx()" style="width:100%"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Results</div>
+        <div class="formula-box" id="calcFormula">
+          <div class="formula-step"><span>Gross Robux</span><span id="cf-gross">0 R$</span></div>
+          <div class="formula-step"><span>After Platform Fee</span><span id="cf-after">0 R$</span></div>
+          <div class="formula-step"><span>Your Developer Robux</span><span id="cf-devRobux">0 R$</span></div>
+          <div class="formula-step"><span>DevEx Eligible?</span><span id="cf-eligible">❌ No</span></div>
+          <div class="formula-step"><span>USD Payout</span><span id="cf-usd">$0.00</span></div>
+        </div>
+        <div class="info-box">
+          <strong>Effective Rate:</strong> <span id="cf-effective">0%</span> of player spending reaches you
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Formula Visualization</div>
+      <div style="font-family:var(--font-mono);font-size:0.85rem;line-height:2;padding:10px;">
+        USD = Gross × (1 - <span id="fv-cut">0.30</span>) × <span id="fv-devpct">1.00</span> × <span id="fv-rate">0.0035</span><br>
+        USD = <span id="fv-gross">0</span> × <span id="fv-remain">0.70</span> × <span id="fv-devpct2">1.00</span> × <span id="fv-rate2">0.0035</span><br>
+        <span style="color:var(--green)">USD = <span id="fv-result">$0.00</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="page" id="page-analytics">
+    <div class="section-header">
+      <h2>Analytics</h2>
+      <div class="actions">
+        <select id="analyticsGame" onchange="renderAnalytics()" style="min-width:120px;"><option value="">All Games</option></select>
+        <input type="date" id="analyticsFrom" onchange="renderAnalytics()">
+        <span style="color:var(--muted)">to</span>
+        <input type="date" id="analyticsTo" onchange="renderAnalytics()">
+      </div>
+    </div>
+    <div class="grid-4">
+      <div class="card"><div class="card-title">Total Robux</div><div class="card-value" id="an-total">0</div></div>
+      <div class="card"><div class="card-title">Avg Daily</div><div class="card-value" id="an-avgDay">0</div></div>
+      <div class="card"><div class="card-title">Best Day</div><div class="card-value green" id="an-best">0</div></div>
+      <div class="card"><div class="card-title">Entries</div><div class="card-value" id="an-entries">0</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">Monthly Revenue</div><div class="chart-wrap-tall"><canvas id="anMonthChart"></canvas></div></div>
+      <div class="card"><div class="card-title">Revenue by Source</div><div class="chart-wrap-tall"><canvas id="anSourceChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily Revenue (last 30 entries)</div>
+      <div class="chart-wrap-tall"><canvas id="anDailyChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- PROJECTIONS -->
+  <div class="page" id="page-projections">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Projection Settings</div>
+        <div class="form-group"><label>Average Daily Robux (auto-calculated or override)</label><input type="number" id="proj-daily" placeholder="Auto" oninput="calcProjections()" style="width:100%"></div>
+        <div class="form-group">
+          <label>Monthly Growth Rate: <span id="proj-growthLabel">0%</span></label>
+          <input type="range" id="proj-growth" min="-50" max="200" value="0" oninput="calcProjections();document.getElementById('proj-growthLabel').textContent=this.value+'%'" style="width:100%">
+        </div>
+        <div class="form-group"><label>Current DevEx Minimum</label><input type="number" id="proj-minimum" value="30000" oninput="calcProjections()" style="width:100%"></div>
+      </div>
+      <div>
+        <div class="proj-highlight" style="margin-bottom:16px;">
+          <div style="color:var(--muted);font-size:0.75rem;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Days Until Next DevEx</div>
+          <div class="proj-big" id="proj-days">—</div>
+        </div>
+        <div class="proj-highlight">
+          <div style="color:var(--muted);font-size:0.75rem;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Estimated Next Payout</div>
+          <div class="proj-big" id="proj-payout">$0.00</div>
+        </div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:16px;">
+      <div class="card"><div class="card-title">Monthly Forecast (12 months)</div><div class="chart-wrap-tall"><canvas id="projMonthChart"></canvas></div></div>
+      <div class="card"><div class="card-title">Cumulative Yearly Projection</div><div class="chart-wrap-tall"><canvas id="projCumChart"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- TAX -->
+  <div class="page" id="page-tax">
+    <div class="info-box" style="margin-bottom:16px;">⚠ This is an <strong>estimate only</strong> and not tax advice. Consult a tax professional for accurate filing.</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Tax Settings</div>
+        <div class="form-group"><label>Country</label>
+          <select id="tax-country" onchange="calcTax()" style="width:100%">
+            <option value="us">🇺🇸 United States</option>
+            <option value="uk">🇬🇧 United Kingdom</option>
+            <option value="ca">🇨🇦 Canada</option>
+            <option value="au">🇦🇺 Australia</option>
+            <option value="custom">🌍 Custom</option>
+          </select>
+        </div>
+        <div class="form-group"><label>State / Province (optional)</label><input type="text" id="tax-state" placeholder="e.g. California" oninput="calcTax()" style="width:100%"></div>
+        <div class="form-group">
+          <label>Federal Tax Rate: <span id="tax-rateLabel">22%</span></label>
+          <input type="range" id="tax-rate" min="0" max="50" value="22" oninput="calcTax();document.getElementById('tax-rateLabel').textContent=this.value+'%'" style="width:100%">
+        </div>
+        <div class="form-group">
+          <label>State Tax Rate: <span id="tax-stateLabel">0%</span></label>
+          <input type="range" id="tax-state-rate" min="0" max="15" value="0" oninput="calcTax();document.getElementById('tax-stateLabel').textContent=this.value+'%'" style="width:100%">
+        </div>
+        <div class="form-group">
+          <label>Self-Employment Tax Rate: <span id="tax-seLabel">15.3%</span></label>
+          <input type="range" id="tax-se" min="0" max="20" value="15" step="0.3" oninput="calcTax();document.getElementById('tax-seLabel').textContent=parseFloat(this.value).toFixed(1)+'%'" style="width:100%">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Estimated Tax Breakdown</div>
+        <div id="taxBreakdown">
+          <div class="tax-row"><span>Gross USD Income</span><span id="tx-gross">$0.00</span></div>
+          <div class="tax-row"><span>Federal Tax</span><span id="tx-federal">$0.00</span></div>
+          <div class="tax-row"><span>State Tax</span><span id="tx-state">$0.00</span></div>
+          <div class="tax-row"><span>Self-Employment Tax</span><span id="tx-se">$0.00</span></div>
+          <div class="tax-row"><span>Total Estimated Taxes</span><span id="tx-total">$0.00</span></div>
+          <div class="tax-row"><span>💰 Net Take-Home</span><span id="tx-net">$0.00</span></div>
+        </div>
+        <div style="margin-top:16px;">
+          <div class="card-title">Annual Projection</div>
+          <div class="card-value green" id="tx-annual">$0.00</div>
+          <div class="card-sub">Estimated annual take-home</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Financial Settings</div>
+        <div class="form-group"><label>Roblox Marketplace Cut %</label><input type="number" id="set-cut" value="30" min="0" max="100" style="width:100%"></div>
+        <div class="form-group"><label>DevEx Conversion Rate (USD/Robux)</label><input type="number" id="set-rate" value="0.0035" step="0.0001" style="width:100%"></div>
+        <div class="form-group"><label>DevEx Minimum (Robux)</label><input type="number" id="set-min" value="30000" style="width:100%"></div>
+        <div class="form-group"><label>Default Developer % (for single-dev)</label><input type="number" id="set-devpct" value="100" min="0" max="100" style="width:100%"></div>
+        <button onclick="saveSettings()">💾 Save Settings</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Display Settings</div>
+        <div class="form-group"><label>Currency Symbol</label><input type="text" id="set-currency" value="$" style="width:100%"></div>
+        <div class="form-group"><label>Number Format</label>
+          <select id="set-numfmt" style="width:100%"><option value="en-US">US (1,234.56)</option><option value="de-DE">EU (1.234,56)</option></select>
+        </div>
+        <div class="form-group"><label>Theme</label>
+          <select id="set-theme" onchange="applyTheme(this.value)" style="width:100%">
+            <option value="dark">Dark</option><option value="light">Light</option>
+          </select>
+        </div>
+        <button onclick="saveSettings()">💾 Save Settings</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">About RoFinance</div>
+      <p style="font-size:0.82rem;color:var(--muted);line-height:1.7;margin-top:8px;">
+        RoFinance is an independent, open financial calculator for Roblox developers. Not affiliated with Roblox Corporation.<br>
+        All data stored locally in your browser. No accounts required. No data sent to servers.<br>
+        <strong style="color:var(--accent)">Version 1.0</strong> — Built for Roblox Studios and independent devs.
+      </p>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="page" id="page-admin">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Data Backup</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px;line-height:1.6;">Export all your data as a JSON backup file. You can import it later to restore your data.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-green" onclick="backupData()">⬇ Export Backup</button>
+          <label><button class="btn-ghost" onclick="document.getElementById('backupImport').click()">⬆ Import Backup</button></label>
+          <input type="file" id="backupImport" accept=".json" style="display:none" onchange="importBackup(event)">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Storage Info</div>
+        <div id="storageInfo" style="font-family:var(--font-mono);font-size:0.8rem;line-height:2;color:var(--muted);">Calculating...</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;border-color:var(--red);">
+      <div class="card-title" style="color:var(--red);">⚠ Danger Zone</div>
+      <p style="font-size:0.82rem;color:var(--muted);margin:10px 0;">This will permanently delete ALL your data including revenue entries, developer splits, and settings.</p>
+      <button class="btn-red" onclick="if(confirm('Are you sure? This cannot be undone.')) resetData()">🗑 Reset All Data</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">Saved!</div>
+
+<script>
+// ============================================================
+//  STATE — all data lives here, persisted to localStorage
+// ============================================================
+let state = {
+  revenues: [],
+  developers: [],
+  settings: {
+    marketplaceCut: 30,
+    devexRate: 0.0035,
+    devexMin: 30000,
+    defaultDevPct: 100,
+    currency: '$',
+    numFmt: 'en-US',
+    theme: 'dark'
+  },
+  editingRevIdx: null,
+  editingDevIdx: null
+};
+
+// ============================================================
+//  PERSISTENCE
+// ============================================================
+function save() {
+  localStorage.setItem('rofinance_v1', JSON.stringify(state));
+}
+function load() {
+  const raw = localStorage.getItem('rofinance_v1');
+  if (raw) {
+    try {
+      const loaded = JSON.parse(raw);
+      state = { ...state, ...loaded };
+      state.settings = { ...state.settings, ...(loaded.settings || {}) };
+    } catch(e) {}
+  }
+}
+
+// ============================================================
+//  CALCULATIONS
+// ============================================================
+function calcCore() {
+  const s = state.settings;
+  const grossRobux = state.revenues.reduce((a, r) => a + (parseFloat(r.robux) || 0), 0);
+
+  // masterDevPct: weighted average from active devs or default
+  const activeDev = state.developers.filter(d => d.active);
+  let masterDevPct = s.defaultDevPct / 100;
+  if (activeDev.length > 0) {
+    masterDevPct = activeDev.reduce((a, d) => a + (parseFloat(d.pct) || 0), 0) / 100;
+  }
+
+  const afterFee = grossRobux * (1 - s.marketplaceCut / 100); // grossRobux × (1 - 0.30)
+  const devRobux = afterFee * masterDevPct;                    // devRobux = afterFee × devPct
+  const usd = devRobux * s.devexRate;                         // USD = devRobux × devexRate
+  const eligible = devRobux >= s.devexMin;
+  const cashout = eligible ? usd : 0;
+
+  return { grossRobux, afterFee, devRobux, usd, eligible, cashout, masterDevPct };
+}
+
+function fmt(n, decimals = 0) {
+  return n.toLocaleString(state.settings.numFmt, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function fmtUSD(n) {
+  return state.settings.currency + fmt(n, 2);
+}
+
+// ============================================================
+//  RENDER ALL
+// ============================================================
+function renderAll() {
+  const c = calcCore();
+  renderDashboard(c);
+  renderRevenueTable();
+  renderDevsTable(c);
+  renderAnalytics();
+  calcProjections();
+  calcTax();
+  updateTopbar(c);
+  updateStorageInfo();
+}
+
+function updateTopbar(c) {
+  const badge = document.getElementById('devexBadge');
+  badge.textContent = c.eligible ? '✓ DevEx Eligible' : 'DevEx: Ineligible';
+  badge.className = 'devex-badge' + (c.eligible ? '' : ' ineligible');
+  document.getElementById('topbarRobux').textContent = fmt(c.grossRobux) + ' R$';
+}
+
+// ============================================================
+//  DASHBOARD
+// ============================================================
+let dashMonthChart, dashSourceChart, dashSplitChart;
+
+function renderDashboard(c) {
+  document.getElementById('d-grossRobux').textContent = fmt(c.grossRobux);
+  document.getElementById('d-afterFee').textContent = fmt(Math.round(c.afterFee));
+  document.getElementById('d-usd').textContent = fmtUSD(c.usd);
+  document.getElementById('d-cashout').textContent = fmtUSD(c.cashout);
+
+  const pct = Math.min(100, (c.devRobux / state.settings.devexMin) * 100);
+  document.getElementById('d-progress').style.width = pct + '%';
+  document.getElementById('d-progText').textContent = fmt(Math.round(c.devRobux)) + ' / ' + fmt(state.settings.devexMin) + ' R$';
+  const statusEl = document.getElementById('d-eligStatus');
+  if (c.eligible) {
+    statusEl.innerHTML = '<span class="dot dot-green"></span>DevEx Eligible!';
+  } else {
+    const need = Math.max(0, state.settings.devexMin - c.devRobux);
+    statusEl.innerHTML = '<span class="dot dot-red"></span>Not Eligible';
+    document.getElementById('d-needed').textContent = 'Need ' + fmt(Math.round(need)) + ' more R$ to DevEx';
+  }
+
+  // Monthly chart
+  const monthly = getMonthlyData();
+  if (dashMonthChart) dashMonthChart.destroy();
+  dashMonthChart = new Chart(document.getElementById('dashMonthChart').getContext('2d'), {
+    type: 'line', data: {
+      labels: monthly.labels,
+      datasets: [{ label: 'Robux', data: monthly.values, borderColor: '#00e5ff', tension: 0.4, fill: true, backgroundColor: 'rgba(0,229,255,0.08)' }]
+    }, options: chartOpts()
+  });
+
+  // Source chart
+  const sources = getSourceData(state.revenues);
+  if (dashSourceChart) dashSourceChart.destroy();
+  dashSourceChart = new Chart(document.getElementById('dashSourceChart').getContext('2d'), {
+    type: 'doughnut', data: {
+      labels: sources.labels,
+      datasets: [{ data: sources.values, backgroundColor: ['#00e5ff','#7c3aed','#00ff88','#ffd700','#ff4466'] }]
+    }, options: { ...chartOpts(), cutout: '65%' }
+  });
+
+  // Split chart
+  const activeDev = state.developers.filter(d => d.active);
+  if (dashSplitChart) dashSplitChart.destroy();
+  const splitLabels = activeDev.length ? activeDev.map(d => d.name) : ['You'];
+  const splitValues = activeDev.length ? activeDev.map(d => d.pct) : [100];
+  dashSplitChart = new Chart(document.getElementById('dashSplitChart').getContext('2d'), {
+    type: 'pie', data: {
+      labels: splitLabels,
+      datasets: [{ data: splitValues, backgroundColor: ['#00e5ff','#7c3aed','#00ff88','#ffd700','#ff4466','#ff9500'] }]
+    }, options: { ...chartOpts() }
+  });
+}
+
+function chartOpts() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#6b6b8a', font: { family: 'Space Mono', size: 10 } } } },
+    scales: { x: { ticks: { color: '#6b6b8a', font: { size: 9 } }, grid: { color: '#2a2a3a' } }, y: { ticks: { color: '#6b6b8a', font: { size: 9 } }, grid: { color: '#2a2a3a' } } }
+  };
+}
+
+function getMonthlyData(revs) {
+  const r = revs || state.revenues;
+  const map = {};
+  r.forEach(entry => {
+    const d = entry.date || new Date().toISOString().slice(0,10);
+    const key = d.slice(0, 7);
+    map[key] = (map[key] || 0) + (parseFloat(entry.robux) || 0);
+  });
+  const sorted = Object.keys(map).sort();
+  return { labels: sorted, values: sorted.map(k => map[k]) };
+}
+
+function getSourceData(revs) {
+  const map = {};
+  revs.forEach(r => { map[r.type] = (map[r.type] || 0) + (parseFloat(r.robux) || 0); });
+  return { labels: Object.keys(map), values: Object.values(map) };
+}
+
+// ============================================================
+//  REVENUE
+// ============================================================
+let editingRevIdx = null;
+
+function openAddRevenue() {
+  editingRevIdx = null;
+  document.getElementById('revFormTitle').textContent = 'Add Revenue Entry';
+  document.getElementById('rev-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('rev-type').value = 'Gamepass';
+  document.getElementById('rev-robux').value = '';
+  document.getElementById('rev-game').value = '';
+  document.getElementById('rev-notes').value = '';
+  document.getElementById('revenueForm').style.display = 'block';
+}
+
+function cancelRevenue() { document.getElementById('revenueForm').style.display = 'none'; editingRevIdx = null; }
+
+function saveRevenue() {
+  const entry = {
+    date: document.getElementById('rev-date').value || new Date().toISOString().slice(0,10),
+    type: document.getElementById('rev-type').value,
+    robux: parseFloat(document.getElementById('rev-robux').value) || 0,
+    game: document.getElementById('rev-game').value || 'Unknown',
+    notes: document.getElementById('rev-notes').value
+  };
+  if (editingRevIdx !== null) {
+    state.revenues[editingRevIdx] = entry;
+  } else {
+    state.revenues.push(entry);
+  }
+  save(); cancelRevenue(); renderAll(); showToast('Entry saved!');
+}
+
+function editRev(idx) {
+  editingRevIdx = idx;
+  const e = state.revenues[idx];
+  document.getElementById('revFormTitle').textContent = 'Edit Entry';
+  document.getElementById('rev-date').value = e.date;
+  document.getElementById('rev-type').value = e.type;
+  document.getElementById('rev-robux').value = e.robux;
+  document.getElementById('rev-game').value = e.game;
+  document.getElementById('rev-notes').value = e.notes;
+  document.getElementById('revenueForm').style.display = 'block';
+}
+
+function deleteRev(idx) {
+  if (confirm('Delete this entry?')) { state.revenues.splice(idx, 1); save(); renderAll(); showToast('Entry deleted'); }
+}
+
+const typeColors = { 'Gamepass': 'badge-blue', 'Dev Product': 'badge-purple', 'Premium Payout': 'badge-green', 'Ads': 'badge-yellow', 'Other': 'badge-red' };
+
+function renderRevenueTable() {
+  const tbody = document.getElementById('revenueBody');
+  const total = state.revenues.reduce((a, r) => a + (r.robux || 0), 0);
+  document.getElementById('revTotal').textContent = fmt(total) + ' R$';
+
+  // Update game filter in analytics
+  const games = [...new Set(state.revenues.map(r => r.game))];
+  const sel = document.getElementById('analyticsGame');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All Games</option>' + games.map(g => `<option value="${g}">${g}</option>`).join('');
+  sel.value = cur;
+
+  tbody.innerHTML = state.revenues.map((r, i) => `
+    <tr>
+      <td>${r.date}</td>
+      <td><span class="badge ${typeColors[r.type]||'badge-blue'}">${r.type}</span></td>
+      <td style="font-family:var(--font-mono);color:var(--accent)">${fmt(r.robux)} R$</td>
+      <td>${r.game}</td>
+      <td style="color:var(--muted);font-size:0.78rem">${r.notes||'—'}</td>
+      <td>
+        <button class="btn-ghost btn-sm" onclick="editRev(${i})">✏</button>
+        <button class="btn-red btn-sm" onclick="deleteRev(${i})" style="margin-left:4px">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function exportCSV() {
+  const header = 'Date,Source,Robux,Game,Notes\n';
+  const rows = state.revenues.map(r => `${r.date},${r.type},${r.robux},${r.game},"${r.notes}"`).join('\n');
+  downloadFile('revenue_export.csv', header + rows, 'text/csv');
+}
+
+function importCSV(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const lines = ev.target.result.split('\n').slice(1);
+    lines.forEach(l => {
+      const [date, type, robux, game, notes] = l.split(',');
+      if (robux) state.revenues.push({ date: date||'', type: type||'Other', robux: parseFloat(robux)||0, game: game||'Unknown', notes: (notes||'').replace(/"/g,'') });
+    });
+    save(); renderAll(); showToast('CSV imported!');
+  };
+  reader.readAsText(f);
+}
+
+// ============================================================
+//  DEVELOPER SPLITS
+// ============================================================
+function addDev() {
+  state.developers.push({ name: 'Developer ' + (state.developers.length + 1), role: '', pct: 0, active: true });
+  save(); renderAll();
+}
+
+function deleteDev(idx) {
+  state.developers.splice(idx, 1); save(); renderAll();
+}
+
+function renderDevsTable(c) {
+  const tbody = document.getElementById('devsBody');
+  const cards = document.getElementById('devCards');
+  const totalPct = state.developers.reduce((a, d) => a + (parseFloat(d.pct) || 0), 0);
+
+  const totalEl = document.getElementById('splitTotal');
+  totalEl.textContent = 'Total: ' + totalPct.toFixed(1) + '%';
+  totalEl.className = 'dev-split-total ' + (Math.abs(totalPct - 100) < 0.01 || state.developers.length === 0 ? 'ok' : 'bad');
+
+  const warning = document.getElementById('splitValidation');
+  warning.style.display = state.developers.length > 0 && Math.abs(totalPct - 100) > 0.01 ? 'block' : 'none';
+
+  tbody.innerHTML = state.developers.map((d, i) => {
+    const devPct = (parseFloat(d.pct) || 0) / 100;
+    const devRobux = c.afterFee * devPct;
+    const devUSD = devRobux * state.settings.devexRate;
+    return `<tr>
+      <td><input value="${d.name}" onchange="state.developers[${i}].name=this.value;save();renderAll()" style="background:transparent;border:none;color:var(--text);width:120px;border-bottom:1px solid var(--border)"></td>
+      <td><input value="${d.role||''}" onchange="state.developers[${i}].role=this.value;save()" style="background:transparent;border:none;color:var(--muted);width:100px;border-bottom:1px solid var(--border)" placeholder="Role"></td>
+      <td><input type="number" value="${d.pct}" min="0" max="100" onchange="state.developers[${i}].pct=parseFloat(this.value)||0;save();renderAll()" style="width:70px;text-align:right"></td>
+      <td><label style="cursor:pointer"><input type="checkbox" ${d.active?'checked':''} onchange="state.developers[${i}].active=this.checked;save();renderAll()"> Active</label></td>
+      <td style="font-family:var(--font-mono);color:var(--accent)">${fmt(Math.round(devRobux))} R$</td>
+      <td style="font-family:var(--font-mono);color:var(--green)">${fmtUSD(devUSD)}</td>
+      <td><button class="btn-red btn-sm" onclick="deleteDev(${i})">🗑</button></td>
+    </tr>`;
+  }).join('');
+
+  cards.innerHTML = state.developers.map((d, i) => {
+    const devPct = (parseFloat(d.pct) || 0) / 100;
+    const devRobux = c.afterFee * devPct;
+    const devUSD = devRobux * state.settings.devexRate;
+    return `<div class="card">
+      <div class="card-title">${d.name} ${d.role ? '· ' + d.role : ''}</div>
+      <div class="card-value">${d.pct}%</div>
+      <div class="card-sub" style="color:var(--accent)">${fmt(Math.round(devRobux))} R$ → ${fmtUSD(devUSD)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+//  DEVEX CALCULATOR
+// ============================================================
+function calcDevEx() {
+  const s = state.settings;
+  const gross = parseFloat(document.getElementById('calc-gross').value) || 0;
+  const cut = parseFloat(document.getElementById('calc-cut').value) || 30;
+  const devPct = parseFloat(document.getElementById('calc-devpct').value) || 100;
+  const rate = parseFloat(document.getElementById('calc-rate').value) || s.devexRate;
+
+  const afterFee = gross * (1 - cut / 100);
+  const devRobux = afterFee * (devPct / 100);
+  const usd = devRobux * rate;
+  const eligible = devRobux >= s.devexMin;
+  const effective = gross > 0 ? (usd / (gross * rate)) * 100 : 0;
+
+  document.getElementById('cf-gross').textContent = fmt(Math.round(gross)) + ' R$';
+  document.getElementById('cf-after').textContent = fmt(Math.round(afterFee)) + ' R$';
+  document.getElementById('cf-devRobux').textContent = fmt(Math.round(devRobux)) + ' R$';
+  document.getElementById('cf-eligible').textContent = eligible ? '✅ Yes' : '❌ No';
+  document.getElementById('cf-usd').textContent = fmtUSD(usd);
+  document.getElementById('cf-effective').textContent = effective.toFixed(1) + '%';
+
+  document.getElementById('fv-cut').textContent = (cut/100).toFixed(2);
+  document.getElementById('fv-devpct').textContent = (devPct/100).toFixed(2);
+  document.getElementById('fv-rate').textContent = rate;
+  document.getElementById('fv-gross').textContent = fmt(Math.round(gross));
+  document.getElementById('fv-remain').textContent = ((100-cut)/100).toFixed(2);
+  document.getElementById('fv-devpct2').textContent = (devPct/100).toFixed(2);
+  document.getElementById('fv-rate2').textContent = rate;
+  document.getElementById('fv-result').textContent = fmtUSD(usd);
+}
+
+// ============================================================
+//  ANALYTICS
+// ============================================================
+let anMonthChart, anSourceChart, anDailyChart;
+
+function renderAnalytics() {
+  const game = document.getElementById('analyticsGame').value;
+  const from = document.getElementById('analyticsFrom').value;
+  const to = document.getElementById('analyticsTo').value;
+
+  let revs = state.revenues;
+  if (game) revs = revs.filter(r => r.game === game);
+  if (from) revs = revs.filter(r => r.date >= from);
+  if (to) revs = revs.filter(r => r.date <= to);
+
+  const total = revs.reduce((a, r) => a + (r.robux||0), 0);
+  const days = new Set(revs.map(r => r.date)).size || 1;
+  const best = revs.reduce((a, r) => { const d={}; revs.forEach(e => { d[e.date]=(d[e.date]||0)+e.robux; }); return Math.max(...Object.values(d), 0); }, 0);
+
+  document.getElementById('an-total').textContent = fmt(Math.round(total));
+  document.getElementById('an-avgDay').textContent = fmt(Math.round(total/days));
+  document.getElementById('an-best').textContent = fmt(Math.round(best));
+  document.getElementById('an-entries').textContent = revs.length;
+
+  const monthly = getMonthlyData(revs);
+  const sources = getSourceData(revs);
+
+  // Last 30 entries daily
+  const last30 = [...revs].sort((a,b)=>a.date.localeCompare(b.date)).slice(-30);
+  const dailyMap = {};
+  last30.forEach(r => { dailyMap[r.date] = (dailyMap[r.date]||0)+r.robux; });
+  const dailyLabels = Object.keys(dailyMap).sort();
+
+  if (anMonthChart) anMonthChart.destroy();
+  anMonthChart = new Chart(document.getElementById('anMonthChart').getContext('2d'), {
+    type: 'bar', data: { labels: monthly.labels, datasets: [{ label: 'Robux', data: monthly.values, backgroundColor: 'rgba(0,229,255,0.5)' }] }, options: chartOpts()
+  });
+
+  if (anSourceChart) anSourceChart.destroy();
+  anSourceChart = new Chart(document.getElementById('anSourceChart').getContext('2d'), {
+    type: 'doughnut', data: { labels: sources.labels, datasets: [{ data: sources.values, backgroundColor: ['#00e5ff','#7c3aed','#00ff88','#ffd700','#ff4466'] }] },
+    options: { ...chartOpts(), cutout: '60%' }
+  });
+
+  if (anDailyChart) anDailyChart.destroy();
+  anDailyChart = new Chart(document.getElementById('anDailyChart').getContext('2d'), {
+    type: 'line', data: { labels: dailyLabels, datasets: [{ label: 'Daily R$', data: dailyLabels.map(k=>dailyMap[k]), borderColor: '#00ff88', tension: 0.4, fill: true, backgroundColor: 'rgba(0,255,136,0.06)' }] }, options: chartOpts()
+  });
+}
+
+// ============================================================
+//  PROJECTIONS
+// ============================================================
+let projMonthChart, projCumChart;
+
+function calcProjections() {
+  const total = state.revenues.reduce((a,r)=>a+(r.robux||0),0);
+  const days = new Set(state.revenues.map(r=>r.date)).size || 1;
+  const autoDailyAvg = total / days;
+
+  const manualDaily = parseFloat(document.getElementById('proj-daily').value);
+  const dailyAvg = manualDaily || autoDailyAvg || 0;
+  const growthRate = parseFloat(document.getElementById('proj-growth').value) / 100;
+  const minimum = parseFloat(document.getElementById('proj-minimum').value) || state.settings.devexMin;
+
+  const c = calcCore();
+  const currentDevRobux = c.devRobux;
+  const needed = Math.max(0, minimum - currentDevRobux);
+  const daysUntil = dailyAvg > 0 ? Math.ceil(needed / dailyAvg) : null;
+
+  document.getElementById('proj-days').textContent = daysUntil !== null ? daysUntil + ' days' : '∞';
+  const projDevEx = minimum * state.settings.devexRate;
+  document.getElementById('proj-payout').textContent = fmtUSD(projDevEx);
+
+  // 12 month forecast
+  const labels = [];
+  const monthVals = [];
+  const cumVals = [];
+  let cum = 0;
+  let d = dailyAvg;
+  for (let m = 1; m <= 12; m++) {
+    const label = new Date(Date.now() + m * 30 * 86400000).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    labels.push(label);
+    const monthRobux = d * 30;
+    const monthUSD = monthRobux * (1 - state.settings.marketplaceCut/100) * (state.settings.defaultDevPct/100) * state.settings.devexRate;
+    cum += monthUSD;
+    monthVals.push(parseFloat(monthUSD.toFixed(2)));
+    cumVals.push(parseFloat(cum.toFixed(2)));
+    d *= (1 + growthRate);
+  }
+
+  if (projMonthChart) projMonthChart.destroy();
+  projMonthChart = new Chart(document.getElementById('projMonthChart').getContext('2d'), {
+    type: 'bar', data: { labels, datasets: [{ label: 'Est. USD', data: monthVals, backgroundColor: 'rgba(124,58,237,0.5)' }] }, options: chartOpts()
+  });
+
+  if (projCumChart) projCumChart.destroy();
+  projCumChart = new Chart(document.getElementById('projCumChart').getContext('2d'), {
+    type: 'line', data: { labels, datasets: [{ label: 'Cumulative USD', data: cumVals, borderColor: '#00ff88', tension: 0.4, fill: true, backgroundColor: 'rgba(0,255,136,0.06)' }] }, options: chartOpts()
+  });
+}
+
+// ============================================================
+//  TAX
+// ============================================================
+function calcTax() {
+  const c = calcCore();
+  const grossUSD = c.usd;
+  const federal = grossUSD * (parseFloat(document.getElementById('tax-rate').value) / 100);
+  const stateT = grossUSD * (parseFloat(document.getElementById('tax-state-rate').value) / 100);
+  const se = grossUSD * (parseFloat(document.getElementById('tax-se').value) / 100);
+  const total = federal + stateT + se;
+  const net = grossUSD - total;
+
+  document.getElementById('tx-gross').textContent = fmtUSD(grossUSD);
+  document.getElementById('tx-federal').textContent = fmtUSD(federal);
+  document.getElementById('tx-state').textContent = fmtUSD(stateT);
+  document.getElementById('tx-se').textContent = fmtUSD(se);
+  document.getElementById('tx-total').textContent = fmtUSD(total);
+  document.getElementById('tx-net').textContent = fmtUSD(net);
+
+  const monthly = getMonthlyData();
+  const months = monthly.values.length || 1;
+  const avgMonthlyUSD = c.usd / months;
+  document.getElementById('tx-annual').textContent = fmtUSD(avgMonthlyUSD * 12 - (avgMonthlyUSD * 12 * (parseFloat(document.getElementById('tax-rate').value) + parseFloat(document.getElementById('tax-state-rate').value) + parseFloat(document.getElementById('tax-se').value)) / 100));
+}
+
+// ============================================================
+//  SETTINGS
+// ============================================================
+function loadSettingsForm() {
+  const s = state.settings;
+  document.getElementById('set-cut').value = s.marketplaceCut;
+  document.getElementById('set-rate').value = s.devexRate;
+  document.getElementById('set-min').value = s.devexMin;
+  document.getElementById('set-devpct').value = s.defaultDevPct;
+  document.getElementById('set-currency').value = s.currency;
+  document.getElementById('set-numfmt').value = s.numFmt;
+  document.getElementById('set-theme').value = s.theme;
+}
+
+function saveSettings() {
+  state.settings.marketplaceCut = parseFloat(document.getElementById('set-cut').value) || 30;
+  state.settings.devexRate = parseFloat(document.getElementById('set-rate').value) || 0.0035;
+  state.settings.devexMin = parseFloat(document.getElementById('set-min').value) || 30000;
+  state.settings.defaultDevPct = parseFloat(document.getElementById('set-devpct').value) || 100;
+  state.settings.currency = document.getElementById('set-currency').value || '$';
+  state.settings.numFmt = document.getElementById('set-numfmt').value;
+  applyTheme(document.getElementById('set-theme').value);
+  save(); renderAll(); showToast('Settings saved!');
+}
+
+function applyTheme(t) {
+  state.settings.theme = t;
+  document.body.classList.toggle('light', t === 'light');
+  save();
+}
+
+function toggleTheme() {
+  const t = state.settings.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(t);
+  document.getElementById('set-theme').value = t;
+}
+
+// ============================================================
+//  ADMIN
+// ============================================================
+function backupData() {
+  downloadFile('rofinance_backup_' + new Date().toISOString().slice(0,10) + '.json', JSON.stringify(state, null, 2), 'application/json');
+}
+
+function importBackup(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      state = { ...state, ...data, settings: { ...state.settings, ...(data.settings||{}) } };
+      save(); renderAll(); loadSettingsForm(); applyTheme(state.settings.theme);
+      showToast('Backup imported!');
+    } catch { alert('Invalid backup file'); }
+  };
+  reader.readAsText(f);
+}
+
+function resetData() {
+  state.revenues = []; state.developers = [];
+  save(); renderAll(); showToast('Data reset!');
+}
+
+function updateStorageInfo() {
+  const raw = localStorage.getItem('rofinance_v1') || '';
+  const kb = (raw.length / 1024).toFixed(2);
+  document.getElementById('storageInfo').innerHTML =
+    `Entries: ${state.revenues.length}<br>Developers: ${state.developers.length}<br>Storage used: ~${kb} KB<br>Browser max: ~5 MB`;
+}
+
+// ============================================================
+//  NAV
+// ============================================================
+const pageTitles = { dashboard:'Dashboard', revenue:'Revenue Input', splits:'Developer Splits', devex:'DevEx Calculator', analytics:'Analytics', projections:'Projections', tax:'Tax Estimator', settings:'Settings', admin:'Data Admin' };
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  const navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(n => { if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(id)) n.classList.add('active'); });
+  document.getElementById('pageTitle').textContent = pageTitles[id] || id;
+  if (id === 'projections') calcProjections();
+  if (id === 'analytics') renderAnalytics();
+  if (id === 'tax') calcTax();
+  if (id === 'admin') updateStorageInfo();
+}
+
+// ============================================================
+//  UTILITIES
+// ============================================================
+function downloadFile(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+load();
+applyTheme(state.settings.theme);
+loadSettingsForm();
+
+// Prefill devex calculator with settings values
+document.getElementById('calc-cut').value = state.settings.marketplaceCut;
+document.getElementById('calc-rate').value = state.settings.devexRate;
+
+renderAll();
+calcDevEx();
+
+// Seed demo data if empty
+if (state.revenues.length === 0) {
+  const types = ['Gamepass','Dev Product','Premium Payout','Ads'];
+  const games = ['Survive the Flood','Epic Tycoon','Battle Arena'];
+  const now = new Date();
+  for (let i = 30; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    if (Math.random() > 0.3) {
+      state.revenues.push({
+        date: d.toISOString().slice(0,10),
+        type: types[Math.floor(Math.random()*types.length)],
+        robux: Math.floor(Math.random()*2000+100),
+        game: games[Math.floor(Math.random()*games.length)],
+        notes: ''
+      });
+    }
+  }
+  state.developers = [
+    { name: 'You (Lead Dev)', role: 'Lead', pct: 60, active: true },
+    { name: 'Partner Dev', role: 'Builder', pct: 40, active: true }
+  ];
+  save(); renderAll();
+}
+</script>
+</body>
+</html>
