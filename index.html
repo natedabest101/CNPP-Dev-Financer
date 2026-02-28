@@ -157,6 +157,11 @@
   .proj-highlight { background: linear-gradient(135deg, rgba(0,229,255,0.1), rgba(124,58,237,0.1)); border: 1px solid var(--accent); border-radius: 12px; padding: 20px; text-align: center; }
   .proj-big { font-size: 2.5rem; font-weight: 800; font-family: var(--font-mono); color: var(--accent); }
 
+  @keyframes syncPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(1.35); }
+  }
+
   /* SCROLLBAR */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -213,7 +218,10 @@
   <div class="topbar">
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
-      <span id="syncStatus" style="font-size:0.72rem;font-family:var(--font-mono);color:var(--muted);transition:color 0.3s;">☁️ Local only</span>
+      <div id="syncStatus" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:0.7rem;font-family:var(--font-mono);color:var(--muted);transition:all 0.3s;white-space:nowrap;">
+        <span id="syncDot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block;transition:all 0.3s;flex-shrink:0;"></span>
+        <span id="syncText">Connecting...</span>
+      </div>
       <span id="devexBadge" class="devex-badge ineligible">DevEx: Ineligible</span>
       <span id="topbarRobux" style="font-family:var(--font-mono);font-size:0.82rem;color:var(--muted)">0 R$</span>
     </div>
@@ -592,12 +600,39 @@ let state = {
 // ============================================================
 function setSyncStatus(status, msg) {
   // status: 'idle' | 'saving' | 'saved' | 'error' | 'loading'
-  const el = document.getElementById('syncStatus');
-  if (!el) return;
-  const icons = { idle: '☁️', saving: '⏳', saved: '✅', error: '❌', loading: '🔄' };
-  const colors = { idle: 'var(--muted)', saving: 'var(--yellow)', saved: 'var(--green)', error: 'var(--red)', loading: 'var(--accent)' };
-  el.style.color = colors[status];
-  el.textContent = icons[status] + ' ' + msg;
+  const wrap = document.getElementById('syncStatus');
+  const dot  = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  if (!wrap || !dot || !text) return;
+
+  const colors = {
+    idle:    'var(--muted)',
+    saving:  'var(--yellow)',
+    saved:   'var(--green)',
+    error:   'var(--red)',
+    loading: 'var(--accent)'
+  };
+  const borderColors = {
+    idle:    'var(--border)',
+    saving:  'rgba(255,215,0,0.35)',
+    saved:   'rgba(0,255,136,0.35)',
+    error:   'rgba(255,68,102,0.35)',
+    loading: 'rgba(0,229,255,0.35)'
+  };
+
+  const color = colors[status] || colors.idle;
+  dot.style.background  = color;
+  dot.style.boxShadow   = (status === 'idle') ? 'none' : `0 0 6px ${color}`;
+  text.style.color      = color;
+  text.textContent      = msg;
+  wrap.style.borderColor = borderColors[status] || borderColors.idle;
+
+  // Pulse animation on the dot while loading/saving
+  if (status === 'loading' || status === 'saving') {
+    dot.style.animation = 'syncPulse 1s ease-in-out infinite';
+  } else {
+    dot.style.animation = 'none';
+  }
 }
 
 // ============================================================
